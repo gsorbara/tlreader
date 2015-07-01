@@ -1,5 +1,5 @@
 #Tariff Line
 
-A simple client which download the SDMX returned by UNSD services and transform it into a csv (tab delimited) file.
+A simple client that downloads data from UNSD services and transform them from SDMX to csv (tab delimited).
 
-_You need to be authorized to use UNSD services_
+_Please note that you must be authorized to use UNSD services_  
