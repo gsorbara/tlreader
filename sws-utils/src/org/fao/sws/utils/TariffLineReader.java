@@ -104,7 +104,7 @@ public class TariffLineReader {
 			}
 		}
 		public String getCurrExecLabel(int threadNumber, int cntExecutions) {
-			return SDF.format(new Date())  + " - [reader#" + threadNumber + "(" + cntExecutions + ",c=" + country + ",y=" + country + ")]";
+			return SDF.format(new Date())  + " - [reader#" + threadNumber + "(" + cntExecutions + ",c=" + country + ",y=" + year + ")]";
 		}
 		public void logCompleted(int threadNumber, int cntExecutions) throws Exception {
 			if (completedStream != null) completedStream.write((country + "\t" + year + "\t" + outFile.getName() + "\n").getBytes());
