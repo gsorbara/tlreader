@@ -338,7 +338,7 @@ public class TariffLineReader {
 				while (!executionReq.started && !executionReq.ended) {
 					Thread.sleep(10);
 				}
-				if (!executionReq.ended) {
+				if (executionReq.started && !executionReq.ended) {
 					executionReq.log(this.threadNumber, this.cntExecutions, "parser - start detected");
 					int cnt = 0;
 					String buffer = "";
@@ -347,7 +347,7 @@ public class TariffLineReader {
 					SectRow sectRow = null;
 					
 					while (!executionReq.ended || executionReq.chunks.size() > 0) {
-						if (executionReq.chunks.size() == 0) {
+						if (!executionReq.ended && executionReq.chunks.size() == 0) {
 							Thread.sleep(100);
 						}
 						byte[] _chunk = null;
