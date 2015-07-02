@@ -335,91 +335,92 @@ public class TariffLineReader {
 		public void run() {
 			try (FileOutputStream fos = new FileOutputStream(executionReq.outFile)) {
 				executionReq.log(this.threadNumber, this.cntExecutions, "parser - thread running");
-				while (!executionReq.started) {
+				while (!executionReq.started && !executionReq.ended) {
 					Thread.sleep(10);
 				}
-				executionReq.log(this.threadNumber, this.cntExecutions, "parser - start detected");
-				int cnt = 0;
-				String buffer = "";
-				boolean contentStarted = false, contentEnded = false;
-				GroupRow groupRow = null;
-				SectRow sectRow = null;
-				
-				while (!executionReq.ended || executionReq.chunks.size() > 0) {
-					if (executionReq.chunks.size() == 0) {
-						Thread.sleep(100);
-					}
-					byte[] _chunk = null;
-					if (executionReq.chunks.size() > 0) {
-						synchronized (executionReq.chunks) {
-							_chunk = executionReq.chunks.get(0);
-							executionReq.chunks.remove(0);
+				if (!executionReq.ended) {
+					executionReq.log(this.threadNumber, this.cntExecutions, "parser - start detected");
+					int cnt = 0;
+					String buffer = "";
+					boolean contentStarted = false, contentEnded = false;
+					GroupRow groupRow = null;
+					SectRow sectRow = null;
+					
+					while (!executionReq.ended || executionReq.chunks.size() > 0) {
+						if (executionReq.chunks.size() == 0) {
+							Thread.sleep(100);
 						}
-					}
-					if (_chunk != null) {
-						buffer += new String(_chunk);
-						if (!contentStarted) {
-							int pos = buffer.indexOf("<uncs:Group ");
-							if (pos != -1) {
-								buffer = buffer.substring(pos);
-								contentStarted = true;
-								fos.write(("RPT\ttime\tCURRENCY\tREPORTED_CLASSIFICATION\tTF\tREPORTED_CURRENCY\tCC\tPRT\tnetweight\tqty\tQU\tvalue\tEST\tHT\n").getBytes());
+						byte[] _chunk = null;
+						if (executionReq.chunks.size() > 0) {
+							synchronized (executionReq.chunks) {
+								_chunk = executionReq.chunks.get(0);
+								executionReq.chunks.remove(0);
 							}
 						}
-						if (!contentEnded) {
-							int pos = buffer.indexOf("</uncs:Group>");
-							if (pos != -1) {
-								buffer = buffer.substring(0, pos + "</uncs:Group>".length());
-								contentEnded = true;
+						if (_chunk != null) {
+							buffer += new String(_chunk);
+							if (!contentStarted) {
+								int pos = buffer.indexOf("<uncs:Group ");
+								if (pos != -1) {
+									buffer = buffer.substring(pos);
+									contentStarted = true;
+									fos.write(("RPT\ttime\tCURRENCY\tREPORTED_CLASSIFICATION\tTF\tREPORTED_CURRENCY\tCC\tPRT\tnetweight\tqty\tQU\tvalue\tEST\tHT\n").getBytes());
+								}
 							}
-						}
-						if (contentStarted) {
-							boolean doAgain = true;
-							while (doAgain) {
-								if (buffer.startsWith("</uncs:Group>")) {
-									buffer = buffer.substring("</uncs:Group>".length());
+							if (!contentEnded) {
+								int pos = buffer.indexOf("</uncs:Group>");
+								if (pos != -1) {
+									buffer = buffer.substring(0, pos + "</uncs:Group>".length());
+									contentEnded = true;
 								}
-								if (buffer.startsWith("</uncs:Section>")) {
-									buffer = buffer.substring("</uncs:Section>".length());
-								}
-								if (buffer.startsWith("<uncs:Group ")) {
-									int posEnd = buffer.indexOf(">");
-									if (posEnd > -1) {
-										groupRow = new GroupRow(buffer.substring("<uncs:Group ".length(), posEnd));
-										buffer = buffer.substring(posEnd + 1);
+							}
+							if (contentStarted) {
+								boolean doAgain = true;
+								while (doAgain) {
+									if (buffer.startsWith("</uncs:Group>")) {
+										buffer = buffer.substring("</uncs:Group>".length());
+									}
+									if (buffer.startsWith("</uncs:Section>")) {
+										buffer = buffer.substring("</uncs:Section>".length());
+									}
+									if (buffer.startsWith("<uncs:Group ")) {
+										int posEnd = buffer.indexOf(">");
+										if (posEnd > -1) {
+											groupRow = new GroupRow(buffer.substring("<uncs:Group ".length(), posEnd));
+											buffer = buffer.substring(posEnd + 1);
+										} else {
+											doAgain = false;
+										}
+									} else if (buffer.startsWith("<uncs:Section ")) {
+										int posEnd = buffer.indexOf(">");
+										if (posEnd > -1) {
+											sectRow = new SectRow(buffer.substring("<uncs:Section ".length(), posEnd));
+											buffer = buffer.substring(posEnd + 1);
+										} else {
+											doAgain = false;
+										}
+									} else if (buffer.startsWith("<uncs:Obs ")) {
+										int posEnd = buffer.indexOf(">");
+										if (posEnd > -1) {
+											ObsRow obsRow = new ObsRow(buffer.substring("<uncs:Obs ".length(), posEnd - 1));
+											fos.write((groupRow.toCsv() + "\t" + sectRow.toCsv() + "\t" + obsRow.toCsv() + "\n").getBytes());
+											buffer = buffer.substring(posEnd + 1);
+										} else {
+											doAgain = false;
+										}
 									} else {
 										doAgain = false;
 									}
-								} else if (buffer.startsWith("<uncs:Section ")) {
-									int posEnd = buffer.indexOf(">");
-									if (posEnd > -1) {
-										sectRow = new SectRow(buffer.substring("<uncs:Section ".length(), posEnd));
-										buffer = buffer.substring(posEnd + 1);
-									} else {
-										doAgain = false;
-									}
-								} else if (buffer.startsWith("<uncs:Obs ")) {
-									int posEnd = buffer.indexOf(">");
-									if (posEnd > -1) {
-										ObsRow obsRow = new ObsRow(buffer.substring("<uncs:Obs ".length(), posEnd - 1));
-										fos.write((groupRow.toCsv() + "\t" + sectRow.toCsv() + "\t" + obsRow.toCsv() + "\n").getBytes());
-										buffer = buffer.substring(posEnd + 1);
-									} else {
-										doAgain = false;
-									}
-								} else {
-									doAgain = false;
 								}
+								
 							}
-							
+							if (++cnt % 5000 == 0) {
+								executionReq.log(this.threadNumber, this.cntExecutions, "parser - chunk written " + (cnt));
+							}
 						}
-						if (++cnt % 5000 == 0) {
-							executionReq.log(this.threadNumber, this.cntExecutions, "parser - chunk written " + (cnt));
-						}
-						
 					}
+					fos.flush();
 				}
-				fos.flush();
 				executionReq.log(this.threadNumber, this.cntExecutions, "parser - end detected");
 			} catch (Exception ex) {
 				throw new RuntimeException(ex);
