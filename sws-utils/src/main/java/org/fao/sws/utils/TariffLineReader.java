@@ -16,47 +16,37 @@ public class TariffLineReader {
 	
 	public static void main(String[] args) {
 		String logsKey = (new SimpleDateFormat("yyyyMMdd_hhmmss")).format(new Date());
+//		try (
+//				FileOutputStream logFos = new FileOutputStream(new File(args[3] + File.separator + "log_tariffline_" + logsKey + ".log"));
+//				FileOutputStream complFos = new FileOutputStream(new File(args[3] + File.separator + "completed_tariffline_" + logsKey + ".log"));
+//				FileOutputStream errFos = new FileOutputStream(new File(args[3] + File.separator + "error_tariffline_" + logsKey + ".log"));
+//			) {
+//			TariffLineReader.readMany(args[0], args[1], "*", Integer.parseInt(args[2]), args[3], logFos, complFos, errFos);
+//		} catch (Exception ex) {
+//			ex.printStackTrace();
+//		}
+		
 		try (
-				FileOutputStream logFos = new FileOutputStream(new File(args[3] + File.separator + "log_tariffline_" + logsKey + ".log"));
-				FileOutputStream complFos = new FileOutputStream(new File(args[3] + File.separator + "completed_tariffline_" + logsKey + ".log"));
-				FileOutputStream errFos = new FileOutputStream(new File(args[3] + File.separator + "error_tariffline_" + logsKey + ".log"));
+				FileOutputStream logFos = new FileOutputStream(new File("."+ File.separator + "log_tariffline_" + logsKey + ".log"));
+				FileOutputStream complFos = new FileOutputStream(new File("."+ File.separator + "completed_tariffline_" + logsKey+ ".log"));
+				FileOutputStream errFos = new FileOutputStream(new File("."+ File.separator + "error_tariffline_" + logsKey+ ".log"));
 			) {
-			TariffLineReader.readMany(args[0], args[1], Integer.parseInt(args[2]), args[3], logFos, complFos, errFos);
+				TariffLineReader.readOne("xx", "2010", "*", ".", logFos, complFos, errFos);
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
+		
+
 	}
 	
-	public static void readManyWCommodity(String countriesList, String yearsList, String commodiyFilter, int threads, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
+	public static void readMany(String countriesList, String yearsList, String commodityFilter, int threads, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
 		try {
 			List<ReaderThread> readersPool = new ArrayList<ReaderThread>();
 			List<ExecutionReq> executionReqQueue = new ArrayList<ExecutionReq>();
 			String[] years = yearsList.split("[,]"), countries = countriesList.split("[,]");
 			for (String year : years) {
 				for (String country : countries) {
-					executionReqQueue.add(new ExecutionReq(Integer.parseInt(country), Integer.parseInt(year), commodiyFilter, outFolder, loggerStream, completedStream, errorStream));
-				}
-			}
-			for (int i = 0; i < threads; i++) {
-				readersPool.add(new ReaderThread(executionReqQueue, (i + 1)));
-				readersPool.get(i).start();
-			}
-			for (int i = 0; i < threads; i++) {
-				readersPool.get(i).join();
-			}
-		} catch (Exception ex) {
-			throw new RuntimeException();
-		}
-	}
-	
-	public static void readMany(String countriesList, String yearsList, int threads, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
-		try {
-			List<ReaderThread> readersPool = new ArrayList<ReaderThread>();
-			List<ExecutionReq> executionReqQueue = new ArrayList<ExecutionReq>();
-			String[] years = yearsList.split("[,]"), countries = countriesList.split("[,]");
-			for (String year : years) {
-				for (String country : countries) {
-					executionReqQueue.add(new ExecutionReq(Integer.parseInt(country), Integer.parseInt(year), outFolder, loggerStream, completedStream, errorStream));
+					executionReqQueue.add(new ExecutionReq(country.trim(), year.trim(), commodityFilter.trim(), outFolder, loggerStream, completedStream, errorStream));
 				}
 				
 			}
@@ -72,9 +62,9 @@ public class TariffLineReader {
 		}
 	}
 	
-	public static void readOne(int country, int year, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
+	public static void readOne(String country, String year, String commodityFilter, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
 		try {
-			ExecutionReq executionReq = new ExecutionReq(country, year, outFolder, loggerStream, completedStream, errorStream);
+			ExecutionReq executionReq = new ExecutionReq(country, year, commodityFilter, outFolder, loggerStream, completedStream, errorStream);
 			List<ExecutionReq> executionReqQueue = new ArrayList<ExecutionReq>();
 			executionReqQueue.add(executionReq);
 			new ReaderThread(executionReqQueue, 1).readNext();
@@ -84,11 +74,11 @@ public class TariffLineReader {
 	}
 	
 	public static class ExecutionReq {
-		public static String BASE_URL = "http://comtrade.un.org/ws/getSdmxTariffLineV1.aspx?r=%d&y=%d&cc=*&comp=false";
+		public static String BASE_URL = "http://comtrade.un.org/ws/getSdmxTariffLineV1.aspx?r=%s&y=%s&cc=%s&comp=false";
 		public static SimpleDateFormat SDF = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
 
-		int country;
-		int year;
+		String country;
+		String year;
 		String commodityFilter;
 		URL url;
 		File outFile;
@@ -101,30 +91,14 @@ public class TariffLineReader {
 		OutputStream completedStream;
 		OutputStream errorStream;
 		
-		public ExecutionReq(int country, int year, String outFolder, OutputStream logStream, OutputStream completedStream, OutputStream errorStream) throws Exception {
+	public ExecutionReq(String country, String year, String commodityFilter, String outFolder, OutputStream logStream, OutputStream completedStream, OutputStream errorStream) throws Exception {
 			outFolder = outFolder.endsWith("/") || outFolder.endsWith("\\") ? outFolder = outFolder.substring(0, outFolder.length() - 1) : outFolder;
 			if (File.separatorChar != '\\')
 				outFolder = outFolder.replace('\\', File.separatorChar);
 			this.country = country;
 			this.year = year;
-			this.url = new URL(String.format(BASE_URL, country, year));
-			this.outFile = new File(outFolder + File.separator + "tariffline_c" + country + "_y" + year + ".csv");
-			this.logStream = logStream;
-			this.completedStream = completedStream;
-			this.errorStream = errorStream;
-			this.started = false;
-			this.ended = false;
-			this.chunks = new ArrayList<byte[]>();
-		}
-
-		public ExecutionReq(int country, int year, String commodityFilter, String outFolder, OutputStream logStream, OutputStream completedStream, OutputStream errorStream) throws Exception {
-			outFolder = outFolder.endsWith("/") || outFolder.endsWith("\\") ? outFolder = outFolder.substring(0, outFolder.length() - 1) : outFolder;
-			if (File.separatorChar != '\\')
-				outFolder = outFolder.replace('\\', File.separatorChar);
-			this.country = country;
-			this.year = year;
-			this.commodityFilter = commodityFilter;
-			this.url = new URL(String.format(BASE_URL, country, year));
+			this.commodityFilter = (commodityFilter == null || commodityFilter.equals("")) ? "*" : commodityFilter;
+			this.url = new URL(String.format(BASE_URL, country, year, commodityFilter));
 			this.outFile = new File(outFolder + File.separator + "tariffline_c" + country + "_y" + year + ".csv");
 			this.logStream = logStream;
 			this.completedStream = completedStream;
@@ -209,6 +183,7 @@ public class TariffLineReader {
 				} else {
 					ex.printStackTrace();
 				}
+				executionReq = null;
 			}
 			return executionReq != null;
 		}
