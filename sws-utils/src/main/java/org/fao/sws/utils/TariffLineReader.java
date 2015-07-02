@@ -27,6 +27,28 @@ public class TariffLineReader {
 		}
 	}
 	
+	public static void readManyWCommodity(String countriesList, String yearsList, String commodiyFilter, int threads, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
+		try {
+			List<ReaderThread> readersPool = new ArrayList<ReaderThread>();
+			List<ExecutionReq> executionReqQueue = new ArrayList<ExecutionReq>();
+			String[] years = yearsList.split("[,]"), countries = countriesList.split("[,]");
+			for (String year : years) {
+				for (String country : countries) {
+					executionReqQueue.add(new ExecutionReq(Integer.parseInt(country), Integer.parseInt(year), commodiyFilter, outFolder, loggerStream, completedStream, errorStream));
+				}
+			}
+			for (int i = 0; i < threads; i++) {
+				readersPool.add(new ReaderThread(executionReqQueue, (i + 1)));
+				readersPool.get(i).start();
+			}
+			for (int i = 0; i < threads; i++) {
+				readersPool.get(i).join();
+			}
+		} catch (Exception ex) {
+			throw new RuntimeException();
+		}
+	}
+	
 	public static void readMany(String countriesList, String yearsList, int threads, String outFolder, OutputStream loggerStream, OutputStream completedStream, OutputStream errorStream) {
 		try {
 			List<ReaderThread> readersPool = new ArrayList<ReaderThread>();
@@ -67,6 +89,7 @@ public class TariffLineReader {
 
 		int country;
 		int year;
+		String commodityFilter;
 		URL url;
 		File outFile;
 		long startedAt;
@@ -93,6 +116,24 @@ public class TariffLineReader {
 			this.ended = false;
 			this.chunks = new ArrayList<byte[]>();
 		}
+
+		public ExecutionReq(int country, int year, String commodityFilter, String outFolder, OutputStream logStream, OutputStream completedStream, OutputStream errorStream) throws Exception {
+			outFolder = outFolder.endsWith("/") || outFolder.endsWith("\\") ? outFolder = outFolder.substring(0, outFolder.length() - 1) : outFolder;
+			if (File.separatorChar != '\\')
+				outFolder = outFolder.replace('\\', File.separatorChar);
+			this.country = country;
+			this.year = year;
+			this.commodityFilter = commodityFilter;
+			this.url = new URL(String.format(BASE_URL, country, year));
+			this.outFile = new File(outFolder + File.separator + "tariffline_c" + country + "_y" + year + ".csv");
+			this.logStream = logStream;
+			this.completedStream = completedStream;
+			this.errorStream = errorStream;
+			this.started = false;
+			this.ended = false;
+			this.chunks = new ArrayList<byte[]>();
+		}
+		
 		public void log(int threadNumber, int cntExecutions, String msg) throws Exception {
 			if (logStream != null) logStream.write((getCurrExecLabel(threadNumber, cntExecutions) + " - " + msg + "\n").getBytes());
 		}
